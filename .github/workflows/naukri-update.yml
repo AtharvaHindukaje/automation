@@ -280,7 +280,13 @@ jobs:
           ARTIFACT_DIR: 'artifacts'
           DEBUG: 'pw:browser'
 
+    
+      - name: Test Naukri connectivity
         run: |
+          echo "Testing Naukri connectivity..."
+          curl -I -L --max-time 30 https://www.naukri.com/
+          echo "Testing profile endpoint..."
+          curl -I -L --max-time 30 https://www.naukri.com/mnjuser/profile || true
           xvfb-run --auto-servernum npm run update
 
 
