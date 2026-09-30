@@ -167,6 +167,7 @@ async function main(): Promise<void> {
     args: [
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--disable-http2'
     ],
   });
 
@@ -202,10 +203,35 @@ async function main(): Promise<void> {
     });
 
     try {
-      await page.goto(PROFILE_URL, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60_000,
-      });
+      let navigationSucceeded = false;
+
+for (let attempt = 1; attempt <= 3; attempt++) {
+  try {
+    log(`Opening Naukri (attempt ${attempt}/3)`);
+
+    await page.goto(PROFILE_URL, {
+      waitUntil: 'commit',
+      timeout: 30000
+    });
+
+    await page.waitForLoadState('domcontentloaded', {
+      timeout: 30000
+    }).catch(() => {});
+
+    navigationSucceeded = true;
+    break;
+  } catch (error) {
+    log(`Navigation attempt ${attempt} failed: ${error}`);
+
+    if (attempt < 3) {
+      await page.waitForTimeout(3000);
+    }
+  }
+}
+
+if (!navigationSucceeded) {
+  throw new Error('Unable to open Naukri after 3 attempts.');
+}
     } catch (error) {
       log(`Navigation failed: ${String(error)}`);
 
