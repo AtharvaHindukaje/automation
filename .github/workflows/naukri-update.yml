@@ -1,91 +1,59 @@
-name: Update Naukri Resume
+name: Test Naukri Connectivity
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: naukri-resume-update
-  cancel-in-progress: false
-
 jobs:
-  main-job:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Restore Naukri authentication
-        env:
-          NAUKRI_STORAGE_STATE: ${{ secrets.NAUKRI_STORAGE_STATE }}
-        shell: bash
+      - name: System information
         run: |
-          set -euo pipefail
+          echo "=== Runner ==="
+          uname -a
 
-          if [ -z "$NAUKRI_STORAGE_STATE" ]; then
-            echo "ERROR: NAUKRI_STORAGE_STATE secret is missing."
-            exit 1
-          fi
+          echo ""
+          echo "=== Public IP ==="
+          curl --max-time 15 https://api.ipify.org || true
+          echo ""
 
-          mkdir -p playwright/.auth
-
-          printf '%s' "$NAUKRI_STORAGE_STATE" \
-            | base64 --decode \
-            > playwright/.auth/state.json
-
-          if [ ! -s playwright/.auth/state.json ]; then
-            echo "ERROR: Failed to create Playwright authentication state."
-            exit 1
-          fi
-
-          echo "Playwright authentication state restored."
-
-      - name: Test Naukri connectivity
+      - name: DNS test
         run: |
-          echo "Testing Naukri connectivity..."
-          curl --http1.1 -I -L --max-time 30 https://www.naukri.com/
+          echo "=== DNS lookup ==="
+          getent hosts www.naukri.com || true
 
-          echo "Testing profile endpoint..."
-          curl --http1.1 -I -L --max-time 30 https://www.naukri.com/mnjuser/profile || true
+          echo ""
+          echo "=== DNS details ==="
+          nslookup www.naukri.com || true
 
-      - name: Update Naukri resume
-        env:
-          HEADLESS: 'false'
-          RESUME_PATH: 'resume/Atharva_Hindukaje.pdf'
-          AUTH_STATE_PATH: 'playwright/.auth/state.json'
-          ARTIFACT_DIR: 'artifacts'
-          DEBUG: 'pw:browser'
+      - name: Test Naukri HTTPS
         run: |
-          xvfb-run --auto-servernum npm run update
+          echo "=== HTTPS test ==="
+          curl -v \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 30 \
+            https://www.naukri.com/ \
+            -o /dev/null
 
-      - name: Upload debug artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: naukri-update-${{ github.run_number }}
-          path: artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Remove authentication state
-        if: always()
-        shell: bash
+      - name: Test Naukri IPv4
         run: |
-          rm -f playwright/.auth/state.json
-          echo "Temporary authentication state removed."
+          echo "=== IPv4 HTTPS test ==="
+          curl -4 -v \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 30 \
+            https://www.naukri.com/ \
+            -o /dev/null
+
+      - name: Test Naukri IPv6
+        run: |
+          echo "=== IPv6 HTTPS test ==="
+          curl -6 -v \
+            --http1.1 \
+            --connect-timeout 10 \
+            --max-time 30 \
+            https://www.naukri.com/ \
+            -o /dev/null || true
